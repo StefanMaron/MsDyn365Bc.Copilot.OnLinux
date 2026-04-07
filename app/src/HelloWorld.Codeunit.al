@@ -8,4 +8,11 @@ codeunit 50000 "Hello World"
             exit('Hello, world!');
         exit(StrSubstNo('Hello, %1!', Name));
     end;
+
+    procedure Farewell(Name: Text): Text
+    begin
+        if Name = '' then
+            exit('Goodbye, world!');
+        exit(StrSubstNo('Goodbye, %1!', Name));
+    end;
 }
