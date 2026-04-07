@@ -149,3 +149,35 @@ jobs:
           command -v AL >/dev/null            || { echo "AL compiler not on PATH"; exit 1; }
           test -f .bc-cache/env               || { echo "missing .bc-cache/env"; exit 1; }
           echo "Setup OK. Agent can now run ./scripts/iterate.sh"
+
+      - name: Start BC in the background (fire-and-forget)
+        # Start BC NOW so it boots in parallel with the agent's "thinking"
+        # phase. By the time the agent runs ./scripts/iterate.sh for the
+        # first time, BC should be either fully healthy or close to it,
+        # saving 1-5 minutes off the first iterate.sh call.
+        #
+        # `docker compose up -d` returns immediately. BC's entrypoint then
+        # takes ~3-5 minutes to fully boot in the background. iterate.sh's
+        # ensure_bc_running poll handles whatever state BC is in by the
+        # time it gets called.
+        #
+        # If it turns out the docker daemon / container state doesn't
+        # survive the boundary between this setup-steps job and the
+        # agent's main session, this step costs ~5 seconds of wasted work
+        # and iterate.sh just cold-starts BC as it did before. Cheap
+        # downside, big upside.
+        env:
+          BC_ARTIFACTS_DIR: ${{ github.workspace }}/.bc-artifacts/27.5
+        run: |
+          # Source the env file from "Resolve apps to keep" so BC_KEEP_APP_IDS
+          # and BC_CLEAR_ALL_APPS are populated correctly for the selective
+          # filter. Without these the entrypoint would default to keeping
+          # everything, which slows BC startup substantially.
+          set -a
+          # shellcheck disable=SC1091
+          . .bc-cache/env
+          set +a
+          cd .bc-linux
+          docker compose up -d
+          echo "BC boot launched in background. Current status:"
+          docker compose ps
