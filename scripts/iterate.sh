@@ -119,6 +119,17 @@ compile_dir() {
 }
 
 # === Publish one .app to the running BC ===
+#
+# BC's dev endpoint returns 422 for several distinct conditions, only one of
+# which is the benign "already installed at this version" case. Others are
+# real errors (most commonly: a dependency declared in the .app's manifest
+# isn't installed in BC's database, even though stage-symbols put its symbol
+# file in .symbols/ for compile-time resolution). The earlier version of
+# this function treated ALL 422s as "already installed" and silently
+# continued — which silently hid a missing-dependency failure for many
+# rounds of debugging because the publish "succeeded" but the test app was
+# never actually installed, so setupSuite found 0 codeunits and TestRunner
+# returned "0 total, 0 passed, 0 failed" in 0 seconds.
 publish_app() {
     local app="$1"
     [ -f "$app" ] || { echo "ERROR: $app not built"; exit 1; }
@@ -128,11 +139,28 @@ publish_app() {
         -u "$AUTH" -X POST \
         -F "file=@${app};type=application/octet-stream" \
         "$DEV/apps?SchemaUpdateMode=forcesync")
-    if [ "$code" != "200" ] && [ "$code" != "422" ]; then
-        echo "ERROR: publish failed (HTTP $code)"
-        cat /tmp/iterate-pub.out; echo
-        exit 1
+    if [ "$code" = "200" ]; then
+        return 0
     fi
+    # 422 with "already" in the body = benign "same version already installed".
+    # 422 with anything else, or any other 4xx/5xx, is a real error.
+    if [ "$code" = "422" ] && grep -qi "already" /tmp/iterate-pub.out; then
+        echo "[iterate]   (already installed at this version — skipping)"
+        return 0
+    fi
+    echo "ERROR: publish failed (HTTP $code) for $(basename "$app")"
+    echo "       Body:"
+    sed 's/^/         /' /tmp/iterate-pub.out
+    echo ""
+    echo "       Common causes:"
+    echo "         - The .app declares a dependency that isn't installed in BC."
+    echo "           stage-symbols put the symbol file in .symbols/ for compile,"
+    echo "           but the dependency itself still has to live in BC's database."
+    echo "           If this is a Microsoft test framework app, it may need to be"
+    echo "           added to entrypoint.sh's republish set in the bc-linux project."
+    echo "         - Schema sync failure (forcesync detected a destructive change)."
+    echo "         - Version conflict with a previously-published variant."
+    exit 1
 }
 
 # === Refresh the bc-linux clone ===
