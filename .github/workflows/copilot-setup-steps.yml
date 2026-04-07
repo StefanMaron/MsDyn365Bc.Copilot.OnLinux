@@ -33,17 +33,31 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
-    env:
-      BC_VERSION: "27.5"
-      BC_COUNTRY: "w1"
-      BC_TYPE: "sandbox"
-      BC_RUNNER_IMAGE: "ghcr.io/stefanmaron/msdyn365bc.on.linux/bc-runner:latest"
-      AL_TOOL_VERSION: "16.2.28.57946"
-      BC_LINUX_REF: "master"
-      APP_DIRS: "app"
-      TEST_APP_DIRS: "test"
+    # NOTE on env vars: Copilot's coding-agent wrapper around setup-steps
+    # does NOT propagate the job-level `env:` block into the steps it
+    # invokes. We learned this the hard way — every $BC_VERSION etc.
+    # came through empty, the artifact URL ended up as ".../indexes/.json",
+    # and `docker compose pull` fell through to its default `bc-runner`
+    # image and got an "access denied" from Docker Hub.
+    #
+    # The robust pattern is to write everything to $GITHUB_ENV from a
+    # first step. That mechanism IS honored by Copilot's wrapper because
+    # it's the official GH Actions cross-step environment file.
 
     steps:
+      - name: Set BC environment variables
+        run: |
+          {
+            echo "BC_VERSION=27.5"
+            echo "BC_COUNTRY=w1"
+            echo "BC_TYPE=sandbox"
+            echo "BC_RUNNER_IMAGE=ghcr.io/stefanmaron/msdyn365bc.on.linux/bc-runner:latest"
+            echo "AL_TOOL_VERSION=16.2.28.57946"
+            echo "BC_LINUX_REF=master"
+            echo "APP_DIRS=app"
+            echo "TEST_APP_DIRS=test"
+          } >> "$GITHUB_ENV"
+
       - name: Checkout this repo
         uses: actions/checkout@v4
 
@@ -55,8 +69,6 @@ jobs:
           path: .bc-linux
 
       - name: Download BC artifacts + pull docker images (parallel)
-        env:
-          BC_ARTIFACTS_DIR: ${{ github.workspace }}/.bc-artifacts/${{ env.BC_VERSION }}
         run: |
           set -e
           mkdir -p ".bc-artifacts/$BC_VERSION"
