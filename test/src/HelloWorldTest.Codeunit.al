@@ -60,4 +60,30 @@ codeunit 50100 "Hello World Test"
         // [THEN] the result is the generic farewell
         LibraryAssert.AreEqual('Goodbye, world!', Result, 'Farewell should fall back to a generic farewell when name is empty');
     end;
+
+    [Test]
+    procedure LengthWithName_ReturnsLengthOfPersonalisedGreeting()
+    var
+        HelloWorld: Codeunit "Hello World";
+        Result: Integer;
+    begin
+        // [GIVEN] a name
+        // [WHEN] Length is called
+        Result := HelloWorld.Length('Stefan');
+        // [THEN] the result equals the length of the personalised greeting
+        LibraryAssert.AreEqual(StrLen(HelloWorld.Greet('Stefan')), Result, 'Length should return the length of the personalised greeting');
+    end;
+
+    [Test]
+    procedure LengthWithEmptyName_ReturnsLengthOfGenericGreeting()
+    var
+        HelloWorld: Codeunit "Hello World";
+        Result: Integer;
+    begin
+        // [GIVEN] an empty name
+        // [WHEN] Length is called
+        Result := HelloWorld.Length('');
+        // [THEN] the result equals the length of the generic greeting
+        LibraryAssert.AreEqual(StrLen(HelloWorld.Greet('')), Result, 'Length should return the length of the generic greeting when name is empty');
+    end;
 }
