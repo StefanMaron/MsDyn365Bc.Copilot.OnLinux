@@ -15,4 +15,9 @@ codeunit 50000 "Hello World"
             exit('Goodbye, world!');
         exit(StrSubstNo('Goodbye, %1!', Name));
     end;
+
+    procedure Length(Name: Text): Integer
+    begin
+        exit(StrLen(Greet(Name)));
+    end;
 }
