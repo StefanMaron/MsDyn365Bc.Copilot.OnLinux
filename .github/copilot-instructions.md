@@ -19,10 +19,13 @@ Before you started, the `copilot-setup-steps.yml` workflow already:
 - Resolved which baseline BC apps to keep in the database and wrote them
   to `.bc-cache/env`.
 
-Business Central is **not running yet**. The first time you run the dev
-loop in a session, BC boots in ~1–2 minutes (with everything cached).
-After that, it stays running for the rest of your session and every
-subsequent iteration takes seconds.
+Business Central may or may not be running when you start. The
+`copilot-setup-steps.yml` workflow does a fire-and-forget
+`docker compose up -d` at the end, so by the time you reach
+`./scripts/iterate.sh` the BC container is often already healthy or
+nearly so. If it isn't, `iterate.sh`'s first call boots BC in ~1–2
+minutes (with everything cached). After that, BC stays running for
+the rest of your session and every subsequent iteration takes seconds.
 
 ## Your dev loop
 

@@ -4,6 +4,12 @@
 > autonomously develop and verify Business Central extensions —
 > compile, publish, and run AL tests against a real BC instance,
 > end-to-end, with no human in the loop.
+>
+> **Status (2026-04-07): validated end-to-end.** A real Copilot
+> coding-agent task ran `iterate.sh` against a real BC instance,
+> wrote new AL code, executed real tests, observed real results
+> (`6 passed`), and shipped a PR — autonomously, no human
+> intervention. See [Validated outcome](#validated-outcome) below.
 
 ## Why this exists
 
@@ -157,12 +163,38 @@ who want a polished local setup should use bc-linux's own
 | `.github/workflows/copilot-setup-steps.yml` | Pre-task setup for the Copilot agent |
 | `.github/copilot-instructions.md` | Instructions Copilot reads at the start of every task |
 
-## Validation criteria
+## Validated outcome
+
+The blueprint went through end-to-end validation on 2026-04-07
+against a real GitHub Copilot Coding Agent session. Two tasks were
+shipped autonomously:
+
+- **PR #2 — `Add Farewell procedure`** (merged). Copilot wrote a
+  `Farewell(Name: Text): Text` procedure mirroring the existing
+  `Greet`, plus two `[Test]` codeunits following the GIVEN/WHEN/THEN
+  pattern. `iterate.sh` compiled, published, executed.
+- **PR #4 — `Add Length procedure`**. Copilot wrote
+  `Length(Name: Text): Integer = StrLen(Greet(Name))` — composing
+  the new procedure with the existing one — plus two matching
+  `[Test]` procedures. Final line of the agent's session:
+  *"All 6 tests pass. Let me commit and push the changes."*
+
+The "6 tests" were the 4 existing (`Greet` × 2 + `Farewell` × 2)
+plus the 2 new ones. All executed against a real BC instance via
+the test framework, results read back through OData, exit code
+green. Copilot trusted the result and shipped without "I think
+the test runner has a bug" handwaving.
+
+This is, as far as we know, the first time GitHub Copilot Coding
+Agent has done the full compile-publish-run-test cycle on Business
+Central autonomously.
+
+### Validation criteria for a fork
 
 A blueprint fork is "working" when:
 
-1. A human forks it, adds the one allowlist entry, and pushes — CI is
-   green within ~10 minutes on the first push.
+1. A human forks it, adds the one allowlist entry, and pushes — CI
+   is green within ~10 minutes on the first push.
 2. A human assigns Copilot an issue like *"add a `MyFeature` codeunit
    with tests"* and Copilot completes the issue end-to-end without
    intervention: writes the AL, runs the tests, fixes failures,
@@ -171,6 +203,44 @@ A blueprint fork is "working" when:
 
 If any of those break for you, please open an issue here — failure
 modes are the most useful data we can collect.
+
+## Known gotchas (discovered during the bring-up debugging session)
+
+These are landmines we hit while validating the blueprint, all now
+fixed in either bc-linux master or this repo. Documenting them so
+future maintainers don't have to rediscover the same things.
+
+- **Copilot's coding-agent wrapper does NOT propagate job-level `env:`
+  blocks into the steps it invokes.** Use `$GITHUB_ENV` from a first
+  step instead. The fix lives in `.github/workflows/copilot-setup-steps.yml`.
+- **`bcartifacts.blob.core.windows.net` is not in Copilot's default
+  allowlist.** See [Before forking](#before-forking--one-time-setup-you-cannot-skip).
+- **The dev endpoint's `DependencyPublishingOption` does NOT accept
+  `Install`** as a value, despite that being a sensible-sounding name.
+  Valid values are `Default`, `Strict`, `Ignore`. The dev endpoint
+  cannot promote a "Published as Global" app to a tenant install —
+  bc-linux's entrypoint handles this by wiping such apps before NST
+  starts so they can be re-POSTed cleanly.
+- **`iterate.sh` always pulls `bc-linux` master** before doing
+  anything (`refresh_bc_linux`). Without this, improvements pushed to
+  bc-linux master after `copilot-setup-steps.yml` ran would be
+  invisible until the next task. The cost is one `git fetch` per
+  invocation.
+- **The bc-linux Test Runner Extension's `app.json` is included in
+  the keep-set resolver invocation.** This is what makes Microsoft
+  Test Runner show up in the keep set even though no consumer app
+  declares it directly.
+- **`run-tests.sh` returns `0 results in 0 seconds` and exits 1 if
+  the test app is not properly installed for the default tenant.**
+  This used to happen silently. The hardened version now prints a
+  diagnostic dump showing exactly what's in the test suite, and
+  fails loudly if `TESTS_TOTAL == 0`.
+- **A 422 response from BC's dev endpoint can mean any of: "already
+  installed at this version" (benign), "missing dependency" (real
+  error), "schema sync failed" (real error), or "already deployed
+  as a global application" (benign in our context).** Always read
+  the body before deciding what to do — the canonical helper at
+  `bc-linux/scripts/publish-app.sh` does this.
 
 ## Credits
 
