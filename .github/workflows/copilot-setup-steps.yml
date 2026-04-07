@@ -92,7 +92,12 @@ jobs:
 
       - name: Resolve apps to keep in BC database
         run: |
-          ARGS=""
+          # Include bc-linux's own custom Test Runner Extension app.json
+          # so its declared dep on Microsoft Test Runner gets walked into
+          # the closure. Without this the selective filter wipes Microsoft
+          # Test Runner and the entrypoint's TestRunnerExtension publish
+          # later fails with AL1024.
+          ARGS="--app-json .bc-linux/extensions/TestRunnerExtension/app.json"
           for d in $APP_DIRS $TEST_APP_DIRS; do
             [ -z "$d" ] && continue
             if [ -f "$d/app.json" ]; then
