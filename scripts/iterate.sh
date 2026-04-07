@@ -120,47 +120,30 @@ compile_dir() {
 
 # === Publish one .app to the running BC ===
 #
-# BC's dev endpoint returns 422 for several distinct conditions, only one of
-# which is the benign "already installed at this version" case. Others are
-# real errors (most commonly: a dependency declared in the .app's manifest
-# isn't installed in BC's database, even though stage-symbols put its symbol
-# file in .symbols/ for compile-time resolution). The earlier version of
-# this function treated ALL 422s as "already installed" and silently
-# continued — which silently hid a missing-dependency failure for many
-# rounds of debugging because the publish "succeeded" but the test app was
-# never actually installed, so setupSuite found 0 codeunits and TestRunner
-# returned "0 total, 0 passed, 0 failed" in 0 seconds.
+# Delegates to bc_publish_app from bc-linux's shared publish-app.sh
+# helper. The shared helper handles 200/422 distinction (only 422s with
+# "already" in the body are treated as benign), prints diagnostic dumps
+# on real failures, and is the single canonical implementation that
+# both this script and run-tests.sh call into.
+#
+# We source it lazily on first call rather than at script load time
+# because refresh_bc_linux may not have pulled .bc-linux/ yet when the
+# script is parsed.
 publish_app() {
     local app="$1"
     [ -f "$app" ] || { echo "ERROR: $app not built"; exit 1; }
+    if ! declare -F bc_publish_app >/dev/null; then
+        local helper="$BC_LINUX_DIR/scripts/publish-app.sh"
+        if [ ! -f "$helper" ]; then
+            echo "ERROR: $helper not found — refresh_bc_linux didn't run, or"
+            echo "       this bc-linux checkout predates the shared helper."
+            exit 1
+        fi
+        # shellcheck disable=SC1090,SC1091
+        . "$helper"
+    fi
     echo "[iterate] Publishing $(basename "$app")"
-    local code
-    code=$(curl -s -o /tmp/iterate-pub.out -w "%{http_code}" --max-time 180 \
-        -u "$AUTH" -X POST \
-        -F "file=@${app};type=application/octet-stream" \
-        "$DEV/apps?SchemaUpdateMode=forcesync")
-    if [ "$code" = "200" ]; then
-        return 0
-    fi
-    # 422 with "already" in the body = benign "same version already installed".
-    # 422 with anything else, or any other 4xx/5xx, is a real error.
-    if [ "$code" = "422" ] && grep -qi "already" /tmp/iterate-pub.out; then
-        echo "[iterate]   (already installed at this version — skipping)"
-        return 0
-    fi
-    echo "ERROR: publish failed (HTTP $code) for $(basename "$app")"
-    echo "       Body:"
-    sed 's/^/         /' /tmp/iterate-pub.out
-    echo ""
-    echo "       Common causes:"
-    echo "         - The .app declares a dependency that isn't installed in BC."
-    echo "           stage-symbols put the symbol file in .symbols/ for compile,"
-    echo "           but the dependency itself still has to live in BC's database."
-    echo "           If this is a Microsoft test framework app, it may need to be"
-    echo "           added to entrypoint.sh's republish set in the bc-linux project."
-    echo "         - Schema sync failure (forcesync detected a destructive change)."
-    echo "         - Version conflict with a previously-published variant."
-    exit 1
+    bc_publish_app "$app" "$DEV" "$AUTH" || exit 1
 }
 
 # === Refresh the bc-linux clone ===
