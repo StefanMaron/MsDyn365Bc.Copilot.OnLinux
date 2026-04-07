@@ -106,10 +106,105 @@ firewall warning in the PR body.
 
 ## How to use this blueprint
 
-### Quick path (recommended)
+This repo is a **template, not a destination**. Most consumers will
+already have an existing AL repository and want Copilot Coding Agent
+to be able to compile and test against a real BC instance there. The
+blueprint shows you exactly what to copy in, what to customize, and
+what one-time GitHub setting to flip.
 
-1. Fork this repo (button top-right on GitHub).
-2. Add the `bcartifacts.blob.core.windows.net` allowlist entry (above).
+There are two paths depending on whether you're starting from
+scratch or adopting this in an existing repo.
+
+### Path A — Existing AL repo (most common)
+
+You have a working AL repo with `.al` source somewhere and want
+Copilot to be able to run its tests against real BC. Six steps:
+
+**1. Copy four files from this repo** into your repo, preserving
+   paths:
+
+   ```
+   .github/workflows/bc-test.yml             ← CI on push
+   .github/workflows/copilot-setup-steps.yml ← Pre-task setup for Copilot
+   .github/copilot-instructions.md           ← Instructions the agent reads
+   scripts/iterate.sh                        ← The dev-loop script
+   ```
+
+**2. Add runtime-state directories to your `.gitignore`**
+   (or merge with what you already have):
+
+   ```gitignore
+   # bc-copilot-blueprint runtime state — never commit
+   .bc-linux/
+   .bc-artifacts/
+   .symbols/
+   .bc-cache/
+   build/
+   ```
+
+**3. Customize `.github/workflows/bc-test.yml` for your repo's
+   layout.** Edit the `with:` block to point at YOUR app/test
+   directories and codeunit range:
+
+   ```yaml
+   jobs:
+     bc-tests:
+       uses: StefanMaron/MsDyn365Bc.On.Linux/.github/workflows/bc-test-from-source.yml@master
+       with:
+         bc_version:     "27.5"
+         bc_country:     "w1"
+         app_dirs:       "MyApp"            # ← your prod app dir(s), space-separated
+         test_app_dirs:  "MyApp.Test"       # ← your test app dir(s), space-separated
+         codeunit_range: "50100..50199"     # ← your test codeunit range
+   ```
+
+**4. Customize `.github/workflows/copilot-setup-steps.yml` env vars**
+   so the same `APP_DIRS` / `TEST_APP_DIRS` flow into the keep-set
+   resolver. Edit the `Set BC environment variables` step:
+
+   ```yaml
+   echo "APP_DIRS=MyApp" >> "$GITHUB_ENV"
+   echo "TEST_APP_DIRS=MyApp.Test" >> "$GITHUB_ENV"
+   ```
+
+**5. Customize `scripts/iterate.sh` if your layout differs.** The
+   script reads `APP_DIR` / `TEST_DIR` / `CODEUNIT_RANGE` from
+   environment with defaults of `app` / `test` / `50000..99999`.
+   Either set them in `.bc-cache/env` (which `iterate.sh` sources)
+   or hard-code defaults inside the script for your repo's layout.
+
+**6. Customize `.github/copilot-instructions.md`** to match your
+   repo's conventions: ID ranges, naming patterns, dependency rules,
+   any AL coding style your team uses, what NOT to touch, etc. The
+   default file points at `app/` and `test/` and the 50000..99999
+   range — adjust both to match what you actually use. **This file
+   is the most important one to get right** — it's what the agent
+   reads at the start of every task.
+
+**7. Add the one-time allowlist entry** (see [Before forking
+   …](#before-forking--one-time-setup-you-cannot-skip) above) on
+   your repo's GitHub Copilot settings.
+
+That's it. Push, open an issue, assign Copilot.
+
+> **Tip:** keep your test extension's `dependencies` in `app.json`
+> accurate. The `copilot-setup-steps.yml` workflow walks them through
+> bc-linux's manifest resolver to compute which BC apps need to be
+> kept (or installed) in the database. If you depend on a Microsoft
+> test framework helper that isn't pre-installed in BC's sandbox
+> image (e.g. `Tests-TestLibraries`), declaring it in your test
+> app's `app.json` is enough — bc-linux's entrypoint will see it
+> in the keep set and install it for you.
+
+### Path B — Fork as a starting point
+
+If you're starting a fresh AL extension and want the blueprint's
+exact layout (an `app/` dir + a `test/` dir + a HelloWorld example
+to extend), you can also just **fork or
+[use as template](https://docs.github.com/en/repositories/creating-and-managing-repositories/creating-a-repository-from-a-template)**:
+
+1. Fork this repo (or click "Use this template").
+2. Add the `bcartifacts.blob.core.windows.net` allowlist entry.
 3. Open an issue describing the AL feature you want, e.g.:
    *"Add a `Customer Greeter` codeunit that takes a Customer record
    and returns a personalised greeting using the customer's name and
@@ -128,29 +223,24 @@ firewall warning in the PR body.
   staging. You'll see this in the `copilot-setup-steps.yml` workflow
   run on the agent's branch.
 - **~1–2 minutes** for the first `iterate.sh` invocation (BC cold
-  start with warm caches).
-- **Seconds** per subsequent iteration (publish + test only — BC
-  stays running).
-- A PR opens when Copilot is satisfied, typically after several
+  start with warm caches), or **~0 seconds** if `copilot-setup-steps.yml`'s
+  fire-and-forget BC start has reached `healthy` by the time the
+  agent calls `iterate.sh`.
+- **Seconds** per subsequent iteration (compile + publish + test
+  only — BC stays running).
+- A PR opens when Copilot is satisfied, typically after a few
   iterations.
 
 ### Locally (for humans)
 
-If you want to run the same loop on your own machine:
-
-```bash
-git clone https://github.com/<you>/bc-copilot-blueprint
-cd bc-copilot-blueprint
-git clone https://github.com/StefanMaron/MsDyn365Bc.On.Linux .bc-linux
-mkdir -p .bc-artifacts/27.5
-.bc-linux/scripts/download-artifacts.sh sandbox 27.5 w1 "$PWD/.bc-artifacts/27.5"
-# install .NET 8 + AL compiler tool from NuGet, then:
-./scripts/iterate.sh
-```
-
-(There is intentionally no `Makefile` or wrapper for this — humans
-who want a polished local setup should use bc-linux's own
-`.devcontainer/`.)
+The blueprint isn't designed for humans to run locally — its purpose
+is the Copilot agent's runner. If you want a polished local AL dev
+environment, use bc-linux's own
+[`.devcontainer/`](https://github.com/StefanMaron/MsDyn365Bc.On.Linux/tree/master/.devcontainer)
+which has VS Code AL extension preinstalled and docker-in-docker
+running. That said, `iterate.sh` works fine on a local machine if
+you've manually cloned bc-linux to `.bc-linux/`, downloaded
+artifacts, and installed the .NET 8 SDK + AL compiler.
 
 ## What's in the blueprint
 
