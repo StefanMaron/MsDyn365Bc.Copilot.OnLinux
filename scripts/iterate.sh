@@ -135,6 +135,58 @@ publish_app() {
     fi
 }
 
+# === Wait for an app to actually be visible to BC ===
+#
+# The dev endpoint's POST returns 200 as soon as the upload+publish step
+# finishes, but BC's metadata cache may take another moment to propagate
+# the new codeunits to the test framework. If we invoke run-tests.sh too
+# fast we hit a race where setupSuite returns OK but populates an empty
+# suite — TestRunner then "executes" zero codeunits and reports
+# "0 total, 0 passed, 0 failed" in 0 seconds. Discovered first inside
+# Copilot's coding-agent runner where the inner loop has less I/O slack
+# than a vanilla GH Actions runner.
+#
+# Defensive layer: poll the dev endpoint's app listing for our app id.
+# Once the id appears, we know the metadata is at least partially synced
+# and run-tests.sh's own setupSuite-retry safety net handles the rest.
+wait_for_app_visible() {
+    local app_json="$1"
+    local label="$2"
+    [ -f "$app_json" ] || return 0
+    local target_id
+    target_id=$(python3 -c "import json,sys; print((json.load(open('$app_json'))['id'] or '').lower().strip('{}'))" 2>/dev/null || true)
+    [ -z "$target_id" ] && return 0
+    echo -n "[iterate] Waiting for $label ($target_id) to be visible to BC..."
+    local i
+    for i in $(seq 1 30); do
+        local resp
+        resp=$(curl -sf --max-time 5 -u "$AUTH" "$DEV/apps" 2>/dev/null || true)
+        if [ -n "$resp" ] && echo "$resp" | python3 -c "
+import sys, json
+try:
+    data = json.loads(sys.stdin.read())
+except Exception:
+    sys.exit(1)
+items = data if isinstance(data, list) else data.get('value', [])
+target = '$target_id'
+for app in items:
+    aid = (app.get('Id') or app.get('id') or app.get('AppId') or '').lower().strip('{}')
+    if aid == target:
+        sys.exit(0)
+sys.exit(1)
+" 2>/dev/null; then
+            echo " OK (${i}s)"
+            return 0
+        fi
+        echo -n "."
+        sleep 1
+    done
+    echo " TIMEOUT after 30s"
+    echo "[iterate] WARN: app not visible to BC after 30s. Proceeding anyway —"
+    echo "[iterate]       run-tests.sh has its own setupSuite-retry safety net."
+    return 0
+}
+
 # === Main ===
 ensure_bc_running
 
@@ -146,6 +198,10 @@ compile_dir "$REPO_DIR/$TEST_DIR" "$TEST_OUT"
 
 publish_app "$APP_OUT"
 publish_app "$TEST_OUT"
+
+# Make sure BC has actually seen the test app before we ask its test
+# framework to enumerate codeunits from it. See wait_for_app_visible.
+wait_for_app_visible "$REPO_DIR/$TEST_DIR/app.json" "test app"
 
 echo ""
 echo "[iterate] === Running tests ==="
