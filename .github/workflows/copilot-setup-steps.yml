@@ -116,13 +116,17 @@ jobs:
 
       - name: Stage symbols from BC artifacts
         run: |
+          # Manifest-driven resolver lives in bc-linux. It walks the
+          # artifact tree, indexes every .app by id, and stages exactly
+          # the transitive dep closure of our app.json files (plus
+          # System.app). See bc-linux/scripts/stage-symbols.py.
           mkdir -p .symbols
-          ART=".bc-artifacts/$BC_VERSION"
-          find "$ART/platform/ModernDev" -name "System.app" -exec cp {} .symbols/ \; 2>/dev/null || true
-          find "$ART/app/Extensions" -name "*.app" -exec cp {} .symbols/ \; 2>/dev/null || true
-          find "$ART/platform" -path "*testframework*" -name "*.app" -exec cp {} .symbols/ \; 2>/dev/null || true
-          find "$ART/app/Applications" -name "*Test Library*.app" -exec cp {} .symbols/ \; 2>/dev/null || true
-          find "$ART/app/Applications" -name "*Tests-TestLibraries*.app" -exec cp {} .symbols/ \; 2>/dev/null || true
+          python3 .bc-linux/scripts/stage-symbols.py \
+            --app-json app/app.json \
+            --app-json test/app.json \
+            --artifact-dir ".bc-artifacts/$BC_VERSION" \
+            --out-dir .symbols \
+            || true   # warnings are non-fatal; AL compile gives the precise error if any
           echo "Staged $(ls .symbols/*.app 2>/dev/null | wc -l) symbol files"
 
       - name: Smoke test — does iterate.sh see everything it needs?
