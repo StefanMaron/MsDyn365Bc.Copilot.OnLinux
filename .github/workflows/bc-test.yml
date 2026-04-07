@@ -1,0 +1,26 @@
+name: BC Tests
+
+# Validation CI for the bc-copilot-blueprint. Runs on every push / PR.
+#
+# This is a thin consumer of the reusable workflow hosted in
+# StefanMaron/MsDyn365Bc.On.Linux. It does the same thing as iterate.sh
+# (compile + publish + run tests against a real BC Linux container) but
+# from a clean GitHub Actions runner — independent validation of whatever
+# the Copilot agent committed in its iterate.sh-driven inner loop.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  bc-tests:
+    uses: StefanMaron/MsDyn365Bc.On.Linux/.github/workflows/bc-test-from-source.yml@master
+    with:
+      bc_version:     "27.5"
+      bc_country:     "w1"
+      app_dirs:       "app"
+      test_app_dirs:  "test"
+      codeunit_range: "50100..50199"

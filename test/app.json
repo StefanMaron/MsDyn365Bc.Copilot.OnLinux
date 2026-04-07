@@ -1,0 +1,46 @@
+{
+  "id": "b9e6f4d2-8f5c-5a3b-ad7e-2c3f4a5b6e7d",
+  "name": "BcCopilotBlueprint Tests",
+  "publisher": "BcCopilotBlueprint",
+  "version": "1.0.0.0",
+  "brief": "Tests for the BcCopilotBlueprint app",
+  "description": "Test codeunits exercised by ./scripts/iterate.sh against a real BC instance.",
+  "dependencies": [
+    {
+      "id": "dd0be2ea-f733-4d65-bb34-a28f4624fb14",
+      "publisher": "Microsoft",
+      "name": "Library Assert",
+      "version": "1.0.0.0"
+    },
+    {
+      "id": "5d86850b-0d76-4eca-bd7b-951ad998e997",
+      "publisher": "Microsoft",
+      "name": "Tests-TestLibraries",
+      "version": "1.0.0.0"
+    },
+    {
+      "id": "a8d5f3c1-7e4b-4f2a-9c6d-1b2e3f4a5d6c",
+      "publisher": "BcCopilotBlueprint",
+      "name": "BcCopilotBlueprint",
+      "version": "1.0.0.0"
+    }
+  ],
+  "idRanges": [
+    {
+      "from": 50100,
+      "to": 50199
+    }
+  ],
+  "runtime": "13.0",
+  "target": "OnPrem",
+  "platform": "27.0.0.0",
+  "application": "27.0.0.0",
+  "features": [
+    "NoImplicitWith"
+  ],
+  "resourceExposurePolicy": {
+    "allowDebugging": false,
+    "allowDownloadingSource": false,
+    "includeSourceInSymbolFile": false
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "id": "a8d5f3c1-7e4b-4f2a-9c6d-1b2e3f4a5d6c",
+  "name": "BcCopilotBlueprint",
+  "publisher": "BcCopilotBlueprint",
+  "version": "1.0.0.0",
+  "brief": "Blueprint extension developed by GitHub Copilot Coding Agent",
+  "description": "Minimal example AL app showing the structure Copilot is expected to extend.",
+  "dependencies": [],
+  "idRanges": [
+    {
+      "from": 50000,
+      "to": 50099
+    }
+  ],
+  "runtime": "13.0",
+  "target": "OnPrem",
+  "platform": "27.0.0.0",
+  "application": "27.0.0.0",
+  "features": [
+    "NoImplicitWith"
+  ],
+  "resourceExposurePolicy": {
+    "allowDebugging": false,
+    "allowDownloadingSource": false,
+    "includeSourceInSymbolFile": false
+  }
+}

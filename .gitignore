@@ -1,0 +1,18 @@
+# Runtime state — populated by copilot-setup-steps.yml or iterate.sh,
+# never committed.
+.bc-linux/
+.bc-artifacts/
+.symbols/
+.bc-cache/
+build/
+
+# AL build outputs
+*.app
+**/.alpackages/
+**/.altestrunner/
+**/rad.json
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
